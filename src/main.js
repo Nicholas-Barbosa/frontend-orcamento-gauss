@@ -89,7 +89,7 @@ import TriStateCheckbox from 'primevue/tristatecheckbox';
 import BlockUI from 'primevue/blockui';
 import CodeHighlight from './AppCodeHighlight';
 import ProgressSpinner from 'primevue/progressspinner';
-
+import PrimeVue from 'primevue/config';
 const app = createApp(App);
 
 app.config.globalProperties.$appState = reactive({ inputStyle: 'outlined' });
@@ -97,6 +97,7 @@ app.config.globalProperties.$primevue = reactive({ ripple: true });
 
 app.use(ToastService);
 app.use(router);
+app.use(PrimeVue);
 
 app.directive('tooltip', Tooltip);
 app.directive('ripple', Ripple);

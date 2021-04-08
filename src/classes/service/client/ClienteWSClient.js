@@ -1,17 +1,20 @@
-import httpAxiosService from "./HttpAxiosService";
-
+import GenericClient from "./GenericClient"
 export default class ClienteWSClient {
 
-    
-    getClientes(page){
+    genericWSClient
+    constructor() {
+        this.genericWSClient = new GenericClient();
+    }
+    getClientes(page, pageSize) {
 
-        let uri = "/clients?page="+page+"&pageSize=10";
-          
-        return  httpAxiosService.get(uri,{
-            auth:{
-                username:"Mano.rep",
-                password:"abc@123"
-            }
-        }).then(response => response.data);
+        let uri = "/clients?page=" + page + "&pageSize=" + pageSize;
+
+        return this.genericWSClient.doGet(uri);
+    }
+    getClientesByCodeAndLoja(code,loja) {
+
+        let uri = `/clients/${code}/loja/${loja}`;
+
+        return this.genericWSClient.doGet(uri);
     }
 }

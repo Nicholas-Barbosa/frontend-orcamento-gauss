@@ -4,17 +4,6 @@
       <div class="card"><h2>Novo Orçamento</h2></div>
       <Toast />
     </div>
-    <div class="p-col-12" v-if="buscandoObjetosDiv">
-      <div class="card">
-        <h4>{{ buscandoObjMsg }}</h4>
-        <ProgressSpinner
-          style="width: 50px; height: 50px"
-          strokeWidth="8"
-          fill="#EEEEEE"
-          animationDuration=".5s"
-        />
-      </div>
-    </div>
 
     <div class="p-col-12" v-if="gravidadesRender">
       <div class="card">
@@ -31,43 +20,87 @@
         <Button
           label="Tentar novamente"
           class="p-button-raised p-button-danger"
-          @click="buscarClientesEProdutos"
+          @click="loadLazyClients(1, 15)"
         />
       </div>
     </div>
+
+    <Dialog header="Pesquisar cliente" v-model:visible="isSearchDialogOpened">
+      <div class="p-fluid p-formgrid p-grid">
+        <div class="p-field p-col">
+          <label for="codigo">Codigo</label>
+          <InputText id="codigo" type="text" v-model="clienteCodeToFind" />
+        </div>
+        <div class="p-field p-col">
+          <label for="loja">Loja</label>
+          <InputText id="loja" type="text" v-model="lojaClientToFind" />
+        </div>
+      </div>
+      <Button
+        icon="pi pi-search"
+        class="p-button-success"
+        @click="findClientByCode"
+        label="Pesquisar"
+      />
+    </Dialog>
+
     <div v-if="isVisibleOrcamentoForm">
       <div class="card">
-        <h5>{{ msgSelecionarCliente }}</h5>
+        <h5>{{ msClientDtForm }}</h5>
+        <div v-if="isVisibleButtonToSearchClientsAndDtable">
+          <Button
+            type="button"
+            label="Pesquisar"
+            @click="openSearchDialog"
+          ></Button>
 
-        <DataTable
-          :value="clientes"
-          responsiveLayout="scroll"
-          v-model:selection="clienteSelecionado"
-          @rowSelect="onClienteSelecionado"
-          v-if="isClienteNotSelecionado"
-        >
-          <Column selectionMode="single" headerStyle="width: 3em"></Column>
-          <Column field="nome_fantasia" header="Nome Fantasia"></Column>
-          <Column field="loja" header="Loja"></Column>
-          <Column field="municipio" header="Municipio"></Column>
-          <Column field="tabela" header="Tabela"></Column>
-          <Column field="endereco" header="Endereco"></Column>
-          <Column field="estado" header="Estado"></Column>
-          <Column field="cgc" header="CGC"></Column>
-          <Column field="nome" header="Nome"></Column>
-          <Column field="codigo" header="Codigo"></Column>
-        </DataTable>
-
+          <DataTable
+            :value="responseWSClients.client"
+            :lazy="true"
+            :paginator="true"
+            :rows="15"
+            :totalRecords="responseWSClients.total_items"
+            :loading="loading"
+            filterDisplay="row"
+            @page="onPage($event)"
+            responsiveLayout="scroll"
+            v-model:selection="selectedClient"
+            @rowSelect="onClienteSelecionado"
+          >
+            <Column selectionMode="single" headerStyle="width: 3em"></Column>
+            <Column field="fantasy_name" header="Nome Fantasia"></Column>
+            <Column field="store" header="Loja"></Column>
+            <Column field="city" header="Municipio"></Column>
+            <Column field="table" header="Tabela"></Column>
+            <Column field="address" header="Endereco"></Column>
+            <Column field="state" header="Estado"></Column>
+            <Column
+              field="cgc"
+              header="CGC"
+              filterField="cgc"
+              filterMatchMode="contains"
+              ref="cgc"
+            >
+            </Column>
+            <Column field="name" header="Nome"></Column>
+            <Column field="code" header="Codigo"></Column>
+            <Column field="blocked" header="Bloqueado"></Column>
+          </DataTable>
+        </div>
         <div class="p-grid p-fluid" v-if="isClienteSelecionado">
           <div class="p-col-12 p-md-4">
             <div class="p-inputgroup">
               <InputText
                 placeholder="Keyword"
-                v-model="clienteSelecionado.nome"
+                v-model="selectedClient.name"
                 readonly="true"
               />
 
-              <Button icon="pi pi-pencil" class="p-button-warning" @click="reeditarCliente" />
+              <Button
+                icon="pi pi-pencil"
+                class="p-button-warning"
+                @click="reeditarCliente"
+              />
             </div>
           </div>
         </div>
@@ -278,9 +311,9 @@ import Orcamento from "../../classes/pojo/Orcamento.js";
 export default {
   data() {
     return {
-      clientes: [],
+      responseWSClients: "",
       produtos: [],
-      clienteSelecionado: null,
+      selectedClient: null,
       itens: [],
       gravidades: [],
       count: 0,
@@ -293,10 +326,14 @@ export default {
       buscandoObjMsg: "",
 
       orcamentoResponse: null,
-      isClienteNotSelecionado: true,
+
       isClienteSelecionado: false,
-      msgSelecionarCliente: "Selecione o cliente.",
-      
+      msClientDtForm: null,
+      loading: false,
+      clienteCodeToFind: null,
+      lojaClientToFind: null,
+      isSearchDialogOpened: false,
+      isVisibleButtonToSearchClientsAndDtable: true,
     };
   },
   clientWSClient: null,
@@ -308,35 +345,67 @@ export default {
     this.clientWSClient = new ClienteWSClient();
     this.produtoWSClient = new ProdutoWSClient();
     this.orcamentoWSClient = new OrcamentoWSClient();
+
     MessageService.toast = this.$toast;
   },
   mounted() {
-    this.buscarClientesEProdutos();
+    // this.buscarClientesEProdutos();\
+
+    this.loadLazyClients(1, 15);
   },
   methods: {
     buscarClientesEProdutos() {
       this.buscandoObjMsg = "Buscando clientes e produtos do servidor...";
       this.buscandoObjetosDiv = true;
       this.isVisibleOrcamentoForm = false;
-      this.buscaClientes();
+      this.gravidadesRender = false;
+      this.gravidades = [];
+      this.buscaClientes(1, 15);
       this.buscaProdutos();
     },
-    buscaClientes() {
-      let response = this.clientWSClient.getClientes(1);
-      response
-        .then((data) => {
-          this.clientes = data.cliente;
-          this.buscandoObjetosDiv = false;
-          this.isVisibleOrcamentoForm = true;
+    loadLazyClients(currentPage, pageSize) {
+      this.isVisibleOrcamentoForm = true;
+      this.msClientDtForm = "Buscando clientes do servidor...";
+      this.loading = true;
+      this.clientWSClient
+        .getClientes(currentPage, pageSize)
+        .then((response) => {
+          this.responseWSClients = response.data;
+          this.loading = false;
+          this.msClientDtForm = "Selecione um cliente";
           this.gravidadesRender = false;
         })
         .catch((error) => {
-          this.buscandoObjetosDiv = false;
           this.isVisibleOrcamentoForm = false;
           this.addMessageToGravidades(
-            new MessagePojo("error", "Erro ao buscar cliente, " + error.message)
+            new MessagePojo(
+              "error",
+              "Erro ao buscar clientes, " + error.message
+            )
           );
+          this.loading = false;
+          this.responseWSClients = "";
+          this.isVisibleOrcamentoForm = false;
         });
+    },
+    buscaClientes(currentPage, pageSize) {
+      let response = this.clientWSClient.getClientes(currentPage, pageSize);
+      response.then((response) => {
+        if (response.data) {
+          this.responseWSClients = response.data;
+          this.isVisibleOrcamentoForm = true;
+          this.gravidadesRender = false;
+        } else {
+          this.isVisibleOrcamentoForm = false;
+          this.addMessageToGravidades(
+            new MessagePojo(
+              "error",
+              "Erro ao buscar cliente, " + response.response.data.message
+            )
+          );
+        }
+        this.buscandoObjetosDiv = false;
+      });
     },
     buscaProdutos() {
       let response = this.produtoWSClient.getProdutos(1);
@@ -372,7 +441,6 @@ export default {
           obj.descricao,
           obj.descricao_tipo + " - " + obj.tipo_produto,
           obj.cod_comercial,
-
           1
         );
       });
@@ -423,14 +491,53 @@ export default {
       this.isVisibleOrcamentoResult = false;
     },
     onClienteSelecionado() {
-      this.isClienteNotSelecionado = false;
-      this.isClienteSelecionado=true;
+      this.isVisibleButtonToSearchClientsAndDtable = false;
+      this.isClienteSelecionado = true;
       this.msgSelecionarCliente = "Cliente selecionado.";
     },
-    reeditarCliente(){
-      this.isClienteNotSelecionado=true;
-      this.isClienteSelecionado=false;
-    }
+    reeditarCliente() {
+      this.isVisibleButtonToSearchClientsAndDtable = true;
+      this.isClienteSelecionado = false;
+    },
+    findClientByCode() {
+      if (this.clienteCodeToFind != null && this.lojaClientToFind != null) {
+        this.isSearchDialogOpened = false;
+        this.loading = true;
+        this.clientWSClient
+          .getClientesByCodeAndLoja(
+            this.clienteCodeToFind,
+            this.lojaClientToFind
+          )
+          .then((response) => {
+            this.responseWSClients = response.data;
+            this.loading = false;
+            this.msClientDtForm = "Selecione o cliente";
+          })
+          .catch((error) => {
+            if (error.response.status == 404) {
+              MessageService.showError("Cliente nao encontrado!");
+            } else {
+              this.isVisibleOrcamentoForm = false;
+              this.addMessageToGravidades(
+                new MessagePojo(
+                  "error",
+                  "Erro ao buscar clientes, " + error.message
+                )
+              );
+              this.responseWSClients = "";
+              this.gravidadesRender = true;
+            }
+            this.loading = false;
+          });
+      } else {
+        MessageService.showWarn(
+          "Digite o codigo do cliente e sua respectiva loja."
+        );
+      }
+    },
+    openSearchDialog() {
+      this.isSearchDialogOpened = true;
+    },
   },
 };
 </script>

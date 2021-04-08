@@ -10,7 +10,7 @@ export default class MessageView {
         });
     }
     static  showInfo(msg) {
-        this.$toast.add({
+        this.toast.add({
             severity: "info",
             summary: "Info Message",
             detail: msg,
@@ -18,7 +18,7 @@ export default class MessageView {
         });
     }
     static showWarn(msg) {
-        this.$toast.add({
+        this.toast.add({
             severity: "warn",
             summary: "Warn Message",
             detail: msg,
