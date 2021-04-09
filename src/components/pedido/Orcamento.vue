@@ -55,11 +55,11 @@
           ></Button>
 
           <DataTable
-            :value="responseWSClients.client"
+            :value="clients"
             :lazy="true"
             :paginator="true"
             :rows="15"
-            :totalRecords="responseWSClients.total_items"
+            :totalRecords="30"
             :loading="loading"
             filterDisplay="row"
             @page="onPage($event)"
@@ -316,6 +316,7 @@ export default {
       selectedClient: null,
       itens: [],
       gravidades: [],
+      clients: [],
       count: 0,
       buscandoObjetosDiv: true,
       gravidadesRender: false,
@@ -364,50 +365,43 @@ export default {
       this.buscaProdutos();
     },
     loadLazyClients(currentPage, pageSize) {
-      this.isVisibleOrcamentoForm = true;
-      this.msClientDtForm = "Buscando clientes do servidor...";
-      this.loading = true;
-      this.clientWSClient
-        .getClientes(currentPage, pageSize)
-        .then((response) => {
-          this.responseWSClients = response.data;
-          this.loading = false;
-          this.msClientDtForm = "Selecione um cliente";
-          this.gravidadesRender = false;
-        })
-        .catch((error) => {
-          this.isVisibleOrcamentoForm = false;
-          this.addMessageToGravidades(
-            new MessagePojo(
-              "error",
-              "Erro ao buscar clientes, " + error.message
-            )
-          );
-          this.loading = false;
-          this.responseWSClients = "";
-          this.isVisibleOrcamentoForm = false;
+      let result = this.clientWSClient.getClientes(currentPage, pageSize);
+      if (result instanceof Promise) {
+        result.then((response) => {
+          this.clients = response;
+          console.log("respponse " + response[0].address);
         });
+      } else {
+        this.clients = result;
+        console.log(result)
+      }
+
+      // this.isVisibleOrcamentoForm = true;
+      // this.msClientDtForm = "Buscando clientes do servidor...";
+      // this.loading = true;
+      // this.clientWSClient
+      //   .getClientes(currentPage, pageSize)
+      //   .then((response) => {
+      //     this.responseWSClients = response.data;
+      //     this.loading = false;
+      //     this.msClientDtForm = "Selecione um cliente";
+      //     this.gravidadesRender = false;
+      //   })
+      //   .catch((error) => {
+      //     this.isVisibleOrcamentoForm = false;
+      //     this.addMessageToGravidades(
+      //       new MessagePojo(
+      //         "error",
+      //         "Erro ao buscar clientes, " + error.message
+      //       )
+      //     );
+      //     this.loading = false;
+      //     this.responseWSClients = "";
+      //     this.isVisibleOrcamentoForm = false;
+      //   });
     },
-    buscaClientes(currentPage, pageSize) {
-      let response = this.clientWSClient.getClientes(currentPage, pageSize);
-      response.then((response) => {
-        if (response.data) {
-          this.responseWSClients = response.data;
-          this.isVisibleOrcamentoForm = true;
-          this.gravidadesRender = false;
-        } else {
-          this.isVisibleOrcamentoForm = false;
-          this.addMessageToGravidades(
-            new MessagePojo(
-              "error",
-              "Erro ao buscar cliente, " + response.response.data.message
-            )
-          );
-        }
-        this.buscandoObjetosDiv = false;
-      });
-    },
-    buscaProdutos() {
+    loadLazyProdutos(currentPage, pageSize) {
+      console.log(currentPage + pageSize);
       let response = this.produtoWSClient.getProdutos(1);
       response
         .then((data) => {
@@ -537,6 +531,10 @@ export default {
     },
     openSearchDialog() {
       this.isSearchDialogOpened = true;
+    },
+    onPage(event) {
+      this.loadLazyClients(event.page, event.rows);
+      console.log(event);
     },
   },
 };

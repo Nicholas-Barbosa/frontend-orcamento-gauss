@@ -3,7 +3,7 @@ import httpAxiosService from "./HttpAxiosService";
 export default class ProdutosWSClient {
 
     
-    getProdutos(page){
+    getProdutos(page,){
 
         let uri = "/products?page="+page+"&pageSize=10";
           

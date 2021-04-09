@@ -3,14 +3,14 @@ import httpAxiosService from "./client/HttpAxiosService";
 export default class AuthenService {
 
 
-    static isAuthenticated() {
+     isAuthenticated() {
         return sessionStorage.getItem("accessToken") != null;
     }
 
-    static getAccessToken() {
+     getAccessToken() {
         return sessionStorage.getItem("accessToken");
     }
-    static doLogin(user, password) {
+     doLogin(user, password) {
         let uri = "api/oauth2/v1/token?grant_type=password&password=" + password + "&username=" + user;
 
         const promise = httpAxiosService.post(uri).then((response) => {

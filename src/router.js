@@ -33,8 +33,9 @@ const router = createRouter({
     routes,
 
 });
+const authService = new AuthenService();
 router.beforeEach((to, from, next) => {
-    if (to.path != '/login' && !AuthenService.isAuthenticated()) {
+    if (to.path != '/login' && !authService.isAuthenticated()) {
         next({ path: "/login" });
     } else {
         next();
