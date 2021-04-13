@@ -1,8 +1,10 @@
 import { createWebHashHistory, createRouter } from "vue-router";
-import AuthenService from "./classes/service/AuthenService.js";
+
 import Dashboard from "./components/Dashboard.vue";
 import Orcamento from "./components/pedido/Orcamento";
 import Login from './components/Login.vue'
+import authService  from "./classes/service/AuthenService.js";
+
 export const routes = [
     {
         path: "/dash",
@@ -28,18 +30,22 @@ export const routes = [
     }
 
 ];
+
 const router = createRouter({
     history: createWebHashHistory(),
     routes,
 
 });
-const authService = new AuthenService();
+
+
 router.beforeEach((to, from, next) => {
     if (to.path != '/login' && !authService.isAuthenticated()) {
         next({ path: "/login" });
     } else {
         next();
     }
+   
 
 })
+
 export default router;

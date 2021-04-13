@@ -17,13 +17,16 @@
     "core-js": "^3.6.5",
     "json-ignore": "^0.4.0",
     "mitt": "^2.1.0",
+    "module": "^1.2.5",
     "node-sass": "^5.0.0",
     "primeflex": "^2.0.0",
     "primeicons": "^4.1.0",
     "primevue": "^3.3.5",
     "prismjs": "^1.23.0",
     "vue": "^3.0.0",
-    "vue-router": "^4.0.3"
+    "vue-router": "^4.0.3",
+    "vuex": "^3.6.2",
+    "vuex-persistedstate": "^4.0.0-beta.3"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~4.5.0",

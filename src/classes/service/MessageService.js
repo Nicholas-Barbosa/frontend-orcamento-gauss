@@ -1,7 +1,10 @@
-export default class MessageView {
+export default class  MessageView {
 
-    static toast;
-   static showSuccess(msg) {
+     toast;
+     constructor(toast){
+         this.toast = toast;
+     }
+     showSuccess(msg) {
         this.toast.add({
             severity: "success",
             summary: "Success Message",
@@ -9,7 +12,7 @@ export default class MessageView {
             life: 3000,
         });
     }
-    static  showInfo(msg) {
+     showInfo(msg) {
         this.toast.add({
             severity: "info",
             summary: "Info Message",
@@ -17,7 +20,7 @@ export default class MessageView {
             life: 3000,
         });
     }
-    static showWarn(msg) {
+     showWarn(msg) {
         this.toast.add({
             severity: "warn",
             summary: "Warn Message",
@@ -25,7 +28,7 @@ export default class MessageView {
             life: 3000,
         });
     }
-    static showError(msg) {
+     showError(msg) {
         this.toast.add({
             severity: "error",
             summary: "Error Message",

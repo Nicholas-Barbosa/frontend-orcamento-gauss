@@ -3,6 +3,8 @@ import { reactive } from 'vue';
 import App from './App.vue'
 import router from './router'
 
+
+
 //Prime Vue styles
 import 'primevue/resources/themes/saga-blue/theme.css';
 import 'primevue/resources/primevue.min.css';
@@ -102,6 +104,7 @@ app.use(PrimeVue);
 app.directive('tooltip', Tooltip);
 app.directive('ripple', Ripple);
 app.directive('code', CodeHighlight);
+
 
 //Add PrimeVue components for all application
 app.component('Accordion', Accordion);

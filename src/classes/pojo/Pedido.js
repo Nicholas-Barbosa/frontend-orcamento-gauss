@@ -1,13 +1,13 @@
 
  export default class Pedido{
 
-    cliente
-    loja
-    itens
+    client
+    store
+    items
 
     constructor(cliente,loja,itens){
-        this.cliente = cliente;
-        this.loja = loja;
-        this.itens = itens;
+        this.client = cliente;
+        this.store = loja;
+        this.items = itens;
     }
 }

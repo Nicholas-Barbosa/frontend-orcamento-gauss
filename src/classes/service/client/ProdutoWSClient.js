@@ -1,17 +1,18 @@
-import httpAxiosService from "./HttpAxiosService";
+import genericClient from "./GenericClient";
+
 
 export default class ProdutosWSClient {
 
-    
-    getProdutos(page,){
+ 
 
-        let uri = "/products?page="+page+"&pageSize=10";
-          
-        return  httpAxiosService.get(uri,{
-            auth:{
-                username:"Mano.rep",
-                password:"abc@123"
-            }
-        }).then(response => response.data);
+    getProducts(page, pageSize) {
+        let uri = `/products?page=${page}&pageSize=${pageSize}`;
+        return genericClient.doGet(uri);
+
+    }
+
+    getProductByCode(code) {
+        let uri = `/products/${code}`;
+        return genericClient.doGet(uri);
     }
 }

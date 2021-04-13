@@ -1,25 +1,38 @@
+import router from "../../router";
 import httpAxiosService from "./client/HttpAxiosService";
 
-export default class AuthenService {
+class AuthenService {
 
 
-     isAuthenticated() {
+    isAuthenticated() {
+       
         return sessionStorage.getItem("accessToken") != null;
     }
 
-     getAccessToken() {
+    getAccessToken() {
         return sessionStorage.getItem("accessToken");
     }
-     doLogin(user, password) {
+    doLogin(user, password) {
         let uri = "api/oauth2/v1/token?grant_type=password&password=" + password + "&username=" + user;
 
         const promise = httpAxiosService.post(uri).then((response) => {
             sessionStorage.setItem("accessToken", response.data.access_token)
             sessionStorage.setItem("refreshToken", response.data.refresh_token)
+            router.back();
             return response;
-        }).catch(error => {
-            return error;
-        });
+        })
+           
+    
         return promise;
     }
+    doLogout(){
+        this.invalidToken();
+    }
+    invalidToken() {
+        sessionStorage.removeItem("accessToken");
+        router.push("/login")
+
+    }
 }
+const authService = new AuthenService();
+export default authService;

@@ -20,12 +20,16 @@
         <Button
           label="Tentar novamente"
           class="p-button-raised p-button-danger"
-          @click="loadLazyClients(1, 15)"
+          @click="reTryLoadClientsAndProducts()"
         />
       </div>
     </div>
 
-    <Dialog header="Pesquisar cliente" v-model:visible="isSearchDialogOpened">
+    <Dialog
+      header="Pesquisar cliente"
+      v-model:visible="isFilterDialogOpened"
+      :modal="true"
+    >
       <div class="p-fluid p-formgrid p-grid">
         <div class="p-field p-col">
           <label for="codigo">Codigo</label>
@@ -36,6 +40,10 @@
           <InputText id="loja" type="text" v-model="lojaClientToFind" />
         </div>
       </div>
+      <Message severity="error" v-if="codeAndStoreNotTyped"
+        >Digite o codigo do cliente e sua respectiva loja.</Message
+      >
+
       <Button
         icon="pi pi-search"
         class="p-button-success"
@@ -48,25 +56,32 @@
       <div class="card">
         <h5>{{ msClientDtForm }}</h5>
         <div v-if="isVisibleButtonToSearchClientsAndDtable">
-          <Button
-            type="button"
-            label="Pesquisar"
-            @click="openSearchDialog"
-          ></Button>
-
           <DataTable
-            :value="clients"
+            :value="responseClientDTO.client"
             :lazy="true"
             :paginator="true"
-            :rows="15"
-            :totalRecords="30"
+            :rows="responseClientDTO.page_size"
+            :totalRecords="responseClientDTO.total_items"
             :loading="loading"
-            filterDisplay="row"
             @page="onPage($event)"
             responsiveLayout="scroll"
             v-model:selection="selectedClient"
             @rowSelect="onClienteSelecionado"
+            :globalFilterFields="['cgc']"
+            ref="dt"
+            filterDisplay="row"
           >
+            <template #header>
+              <div class="p-d-flex p-jc-between">
+                <Button
+                  type="button"
+                  icon="pi pi-filter"
+                  label="Avançado"
+                  class="p-button-outlined"
+                  @click="openFilterClientDialog()"
+                />
+              </div>
+            </template>
             <Column selectionMode="single" headerStyle="width: 3em"></Column>
             <Column field="fantasy_name" header="Nome Fantasia"></Column>
             <Column field="store" header="Loja"></Column>
@@ -77,9 +92,9 @@
             <Column
               field="cgc"
               header="CGC"
-              filterField="cgc"
-              filterMatchMode="contains"
+              filterMatchMode="startsWith"
               ref="cgc"
+              filterField="cgc"
             >
             </Column>
             <Column field="name" header="Nome"></Column>
@@ -106,66 +121,33 @@
         </div>
       </div>
 
+      <!-- Produtos/Itens -->
       <div class="p-col-12">
         <div class="card">
-          <h5>Itens</h5>
-          <Button label="Produtos" @click="abreProdutosDialog" />
-
-          <Dialog
-            header="Header"
-            v-model:visible="displayProdutosDialog"
-            :style="{ width: '50vw' }"
-            :modal="true"
-          >
-            <div>
-              <DataTable
-                :value="produtos"
-                responsiveLayout="scroll"
-                v-model:selection="podutosSelecionados"
-              >
-                <Column
-                  selectionMode="multiple"
-                  headerStyle="width: 3em"
-                ></Column>
-                <Column field="descricao" header="Descricao"></Column>
-
-                <Column field="descricao_tipo" header="Tipo - Acrônimo">
-                  <template #body="slotProps">
-                    <span class="image-text"
-                      >{{ slotProps.data.descricao_tipo }} -
-                      {{ slotProps.data.tipo_produto }}</span
-                    >
-                  </template>
-                </Column>
-
-                <Column
-                  field="cod_comercial"
-                  header="Codigo comercial"
-                ></Column>
-                <Column field="codigo" header="Codigo"></Column>
-              </DataTable>
-            </div>
-            <template #footer>
-              <Button
-                label="Confirmar"
-                icon="pi pi-check"
-                @click="confirmarSelecaoDeProdutos"
-                autofocus
-              />
-            </template>
-          </Dialog>
+          <h5>{{ msgLoadingProducts }}</h5>
 
           <DataTable
             :value="itens"
             responsiveLayout="scroll"
             editMode="cell"
             class="editable-cells-table"
+            :loading="loadingItens"
           >
-            <Column field="descricao" header="Descricao"></Column>
-            <Column field="tipo" header="Tipo"></Column>
-            <Column field="cod_produto" header="Codigo Comercial"></Column>
+            <template #header>
+              <div class="p-d-flex p-jc-between">
+                <Button
+                  type="button"
+                  icon="pi pi-search"
+                  label="Produtos"
+                  class="p-button-outlined"
+                  @click="openDlgProducts()"
+                />
+              </div>
+            </template>
+            <Column field="product_code" header="Descricao"></Column>
+            <Column field="descricaoTipo" header="Descricao"></Column>
 
-            <Column field="quantidade" header="Quantidade">
+            <Column field="quantity" header="Quantidade">
               <template #editor="slotProps">
                 <InputText
                   v-model="slotProps.data[slotProps.column.props.field]"
@@ -177,11 +159,110 @@
                 <Button
                   icon="pi pi-trash"
                   class="p-button-rounded p-button-warning"
-                  @click="removeItemDaCollection(slotProps.data)"
+                  @click="removeItemFromCollection(slotProps.data)"
                 />
               </template>
             </Column>
           </DataTable>
+
+          <Dialog
+            header="Selecione os produtos"
+            v-model:visible="displayProdutosDialog"
+            :style="{ width: '50vw' }"
+            :modal="true"
+          >
+            <div class="p-grid">
+              <div class="p-col">
+                <DataTable
+                  :value="responseProdutosDTO.products"
+                  responsiveLayout="scroll"
+                  v-model:selection="podutosSelecionados"
+                  :lazy="true"
+                  :paginator="true"
+                  :rows="responseProdutosDTO.page_size"
+                  :totalRecords="responseProdutosDTO.total_items"
+                  @page="onPageProducts($event)"
+                  :loading="loadingItens"
+                >
+                  <template #header>
+                    <div class="p-d-flex p-jc-between">
+                      <Button
+                        type="button"
+                        icon="pi pi-search"
+                        label="Buscar"
+                        class="p-button-outlined"
+                        @click="openFindProductCodeDlg()"
+                      />
+                    </div>
+                  </template>
+                  <Column
+                    selectionMode="multiple"
+                    headerStyle="width: 3em"
+                  ></Column>
+                  <Column
+                    field="commercial_code"
+                    header="Código comercial"
+                  ></Column>
+                  <Column field="description" header="Descrição"></Column>
+
+                  <Column
+                    field="description_product_type"
+                    header="Tipo - Acrônimo"
+                  >
+                    <template #body="slotProps">
+                      <span class="image-text"
+                        >{{ slotProps.data.description_product_type }} -
+                        {{ slotProps.data.product_type }}</span
+                      >
+                    </template>
+                  </Column>
+
+                  <Column field="code" header="Codigo"></Column>
+                </DataTable>
+              </div>
+              <!-- Produtos selecionados -->
+              <div class="p-col">
+                <DataTable
+                  :value="podutosSelecionados"
+                  responsiveLayout="scroll"
+                >
+                  <template #header>
+                    <div class="p-d-flex p-jc-between">
+                      Produtos selecionados
+                    </div>
+                  </template>
+
+                  <Column
+                    field="commercial_code"
+                    header="Código comercial"
+                  ></Column>
+                  <Column field="description" header="Descrição"></Column>
+
+                  <Column
+                    field="description_product_type"
+                    header="Tipo - Acrônimo"
+                  >
+                    <template #body="slotProps">
+                      <span class="image-text"
+                        >{{ slotProps.data.description_product_type }} -
+                        {{ slotProps.data.product_type }}</span
+                      >
+                    </template>
+                  </Column>
+
+                  <Column field="code" header="Codigo"></Column>
+                </DataTable>
+              </div>
+            </div>
+            <template #footer>
+              <Button
+                label="Confirmar"
+                icon="pi pi-check"
+                @click="confirmItems()"
+                autofocus
+              />
+            </template>
+          </Dialog>
         </div>
       </div>
 
@@ -191,11 +272,106 @@
             icon="pi pi-check"
             class="p-button-rounded p-button-success p-button-lg"
             label="Gerar Orçamento"
-            @click="gerarOrcamento"
+            @click="generateOrcamentoPrices()"
           />
         </div>
       </div>
     </div>
+    <Dialog
+      header="Buscar Produto"
+      v-model:visible="isFindProductDialogOpened"
+      :modal="true"
+    >
+      <div v-if="renderDivFindProdByCodeInputs">
+        <div class="p-fluid p-formgrid p-grid">
+          <div class="p-field p-col">
+            <label for="codigo">Código comercial</label>
+            <InputText
+              id="codigo"
+              name="codigo"
+              type="text"
+              v-model="codeToFindProduct"
+            />
+          </div>
+        </div>
+        <Button
+          label="Buscar"
+          class="p-button-rounded p-button-success"
+          icon="pi pi-check"
+          @click="findProductByCode()"
+        />
+      </div>
+
+      <Message severity="error" v-if="codeAndStoreNotTyped"
+        >Digite o codigo do produto.</Message
+      >
+
+      <div class="p-fluid p-formgrid p-grid" v-if="renderDivResponse">
+        <div class="p-field p-col-12 p-md-6">
+          <label for="codComercial">Código comercial</label>
+          <InputText
+            id="codComercial"
+            type="text"
+            v-model="responseProdDTOFindByCode.products[0].commercial_code"
+            readonly="true"
+          />
+        </div>
+        <div class="p-field p-col-12 p-md-6">
+          <label for="descricao">Descrição</label>
+          <InputText
+            id="descricao"
+            type="text"
+            v-model="responseProdDTOFindByCode.products[0].description"
+            readonly="true"
+          />
+        </div>
+
+        <div class="p-field p-col-12 p-md-6">
+          <label for="tipo">Tipo</label>
+          <InputText
+            id="tipo"
+            type="text"
+            v-model="
+              responseProdDTOFindByCode.products[0].description_product_type
+            "
+            readonly="true"
+          />
+        </div>
+
+        <div class="p-field p-col-12 p-md-3">
+          <label for="codigo">Codigo</label>
+          <InputText
+            id="codigo"
+            type="text"
+            v-model="responseProdDTOFindByCode.products[0].code"
+            readonly="true"
+          />
+        </div>
+      </div>
+      <div v-if="fetchingProductByCode">
+        <ProgressSpinner
+          style="width: 50px; height: 50px"
+          strokeWidth="8"
+          fill="#EEEEEE"
+          animationDuration=".5s"
+        />
+      </div>
+      <div v-if="renderDivResponse">
+        <Button
+          label="Adicionar"
+          class="p-button-rounded p-button-success"
+          icon="pi pi-check"
+          @click="addProductToOrcamento()"
+        />
+
+        <Button
+          label="Procurar novamente"
+          class="p-button-rounded p-button-warning"
+          icon="pi pi-refresh"
+        />
+      </div>
+    </Dialog>
+    <!-- Orcamento div -->
 
     <div class="p-col-12" v-if="isVisibleOrcamentoResult">
       <div class="card">
@@ -205,6 +381,19 @@
 
         <div class="p-fluid p-formgrid p-grid">
           <div class="p-field p-col-12 p-md-6">
+            <label for="valorBurto">Valor bruto</label>
+
+            <InputNumber
+              id="valorBurto"
+              v-model="responseOrcamentoDTO.gross_order_value"
+              mode="currency"
+              currency="BRL"
+              locale="pt-BR"
+              readonly="true"
+            />
+          </div>
+
+          <div class="p-field p-col-12 p-md-6">
             <label for="valorLiquido">Valor liquido</label>
             <InputNumber
               id="valorLiquido"
@@ -212,15 +401,15 @@
               currency="BRL"
               locale="pt-BR"
               readonly="true"
-              v-model="orcamentoResponse.valor_liquido_pedido"
+              v-model="responseOrcamentoDTO.liquid_order_value"
             />
           </div>
-          <div class="p-field p-col-12 p-md-6">
-            <label for="valorBurto">Valor bruto</label>
 
+          <div class="p-field p-col-12 p-md-6">
+            <label for="valorBurto">Total ST</label>
             <InputNumber
               id="valorBurto"
-              v-model="orcamentoResponse.valor_bruto_pedido"
+              v-model="responseOrcamentoDTO.stTotale"
               mode="currency"
               currency="BRL"
               locale="pt-BR"
@@ -233,43 +422,46 @@
               id="descCliente"
               type="text"
               readonly="true"
-              v-model="orcamentoResponse.descricao_cliente"
+              v-model="responseOrcamentoDTO.client_description"
             />
           </div>
           <div class="p-field p-col-12">
             <DataTable
-              :value="orcamentoResponse.orcamento"
+              :value="responseOrcamentoDTO.estimate"
               responsiveLayout="scroll"
             >
-              <Column field="codigo_produto" header="Codigo"></Column>
               <Column
-                field="codigo_comercial"
+                field="commercial_code"
                 header="Codigo comercial"
               ></Column>
-              <Column field="valor_st" header="Valor">
+              <Column field="quantity" header="Quantidade"></Column>
+              <Column field="unit_gross_value" header="Preco bruto un.">
                 <template #body="slotProps">
-                  {{ formatCurrency(slotProps.data.valor_st) }}
+                  {{ formatCurrency(slotProps.data.unit_gross_value) }}
                 </template>
               </Column>
 
-              <Column field="valor_bruto_total" header="Valor Bruto total">
+              <Column field="total_gross_value" header="Preco Bruto total">
                 <template #body="slotProps">
-                  {{ formatCurrency(slotProps.data.valor_bruto_total) }}
+                  {{ formatCurrency(slotProps.data.total_gross_value) }}
                 </template></Column
               >
-              <Column field="preco_unitario" header="Preco unitario">
+
+              <Column field="st_value" header="Valor ST">
                 <template #body="slotProps">
-                  {{ formatCurrency(slotProps.data.preco_unitario) }}
+                  {{ formatCurrency(slotProps.data.st_value) }}
                 </template>
               </Column>
-              <Column field="valor_st_merc" header="Valor st merc">
+
+              <Column field="unit_price" header="Preco unitario">
                 <template #body="slotProps">
-                  {{ formatCurrency(slotProps.data.valor_st_merc) }}
+                  {{ formatCurrency(slotProps.data.unit_price) }}
                 </template>
               </Column>
-              <Column field="preco_total" header="Preco total">
+
+              <Column field="total_price" header="Preco total">
                 <template #body="slotProps">
-                  {{ formatCurrency(slotProps.data.preco_total) }}
+                  {{ formatCurrency(slotProps.data.total_price) }}
                 </template>
               </Column>
             </DataTable>
@@ -297,6 +489,13 @@
     </div>
 
     <!-- Orcamento response -->
+    <div v-if="renderAnythingProcessing">
+      <div class="p-col-12">
+        <div class="card">
+          <h3>{{ processingAnythingMessage }}</h3>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -306,9 +505,18 @@ import ProdutoWSClient from "../../classes/service/client/ProdutoWSClient.js";
 import OrcamentoWSClient from "../../classes/service/client/OrcamentoWSClient.js";
 import MessageService from "../../classes/service/MessageService.js";
 import MessagePojo from "../../classes/pojo/MessagePojo.js";
-import ItemPedido from "../../classes/pojo/ItemPedido.js";
-import Orcamento from "../../classes/pojo/Orcamento.js";
+import ResponseClientDTO from "../../classes/dto/ResponseClientDTO.js";
+import ResponseProdutosDTO from "../../classes/dto/ResponseProdutosDTO.js";
+import ItemPedido from "../../classes/pojo/Item.js";
+import PostOrcamentoDTO from "../../classes/dto/PostOrcamentoDTO.js";
+import ResponseOrcamentoDTO from "../../classes/dto/ResponseOrcamentoDTO.js";
+import errorAxiosHandler from "../../classes/service/ErrorAxiosHandler";
 export default {
+  watch: {
+    filters() {
+      this.onFilter();
+    },
+  },
   data() {
     return {
       responseWSClients: "",
@@ -325,16 +533,29 @@ export default {
       isVisibleOrcamentoForm: true,
       isVisibleOrcamentoResult: false,
       buscandoObjMsg: "",
-
       orcamentoResponse: null,
-
       isClienteSelecionado: false,
       msClientDtForm: null,
-      loading: false,
-      clienteCodeToFind: null,
-      lojaClientToFind: null,
-      isSearchDialogOpened: false,
+      loading: true,
+      clienteCodeToFind: "",
+      lojaClientToFind: "",
+      isFilterDialogOpened: false,
       isVisibleButtonToSearchClientsAndDtable: true,
+      responseClientDTO: null,
+      codeAndStoreNotTyped: false,
+      msgLoadingProducts: "",
+      loadingItens: true,
+      responseProdutosDTO: null,
+      isFindProductDialogOpened: false,
+      codeToFindProduct: "",
+      renderDivResponse: false,
+      fetchingProductByCode: false,
+      renderDivFindProdByCodeInputs: true,
+      responseProdDTOFindByCode: null,
+      renderAnythingProcessing: false,
+      processingAnythingMessage: "",
+      responseOrcamentoDTO: null,
+      messageService: null,
     };
   },
   clientWSClient: null,
@@ -346,77 +567,68 @@ export default {
     this.clientWSClient = new ClienteWSClient();
     this.produtoWSClient = new ProdutoWSClient();
     this.orcamentoWSClient = new OrcamentoWSClient();
-
-    MessageService.toast = this.$toast;
+    this.responseClientDTO = new ResponseClientDTO();
+    this.responseProdutosDTO = new ResponseProdutosDTO();
+    this.responseOrcamentoDTO = new ResponseOrcamentoDTO();
+    this.messageService = new MessageService(this.$toast);
   },
   mounted() {
     // this.buscarClientesEProdutos();\
 
     this.loadLazyClients(1, 15);
+    this.loadLazyProdutos(1, 12);
   },
   methods: {
-    buscarClientesEProdutos() {
-      this.buscandoObjMsg = "Buscando clientes e produtos do servidor...";
-      this.buscandoObjetosDiv = true;
-      this.isVisibleOrcamentoForm = false;
-      this.gravidadesRender = false;
+    reTryLoadClientsAndProducts() {
       this.gravidades = [];
-      this.buscaClientes(1, 15);
-      this.buscaProdutos();
+      this.loadLazyClients(1, 15);
+      this.loadLazyProdutos(1, 12);
     },
     loadLazyClients(currentPage, pageSize) {
-      let result = this.clientWSClient.getClientes(currentPage, pageSize);
-      if (result instanceof Promise) {
-        result.then((response) => {
-          this.clients = response;
-          console.log("respponse " + response[0].address);
-        });
-      } else {
-        this.clients = result;
-        console.log(result)
-      }
-
-      // this.isVisibleOrcamentoForm = true;
-      // this.msClientDtForm = "Buscando clientes do servidor...";
-      // this.loading = true;
-      // this.clientWSClient
-      //   .getClientes(currentPage, pageSize)
-      //   .then((response) => {
-      //     this.responseWSClients = response.data;
-      //     this.loading = false;
-      //     this.msClientDtForm = "Selecione um cliente";
-      //     this.gravidadesRender = false;
-      //   })
-      //   .catch((error) => {
-      //     this.isVisibleOrcamentoForm = false;
-      //     this.addMessageToGravidades(
-      //       new MessagePojo(
-      //         "error",
-      //         "Erro ao buscar clientes, " + error.message
-      //       )
-      //     );
-      //     this.loading = false;
-      //     this.responseWSClients = "";
-      //     this.isVisibleOrcamentoForm = false;
-      //   });
-    },
-    loadLazyProdutos(currentPage, pageSize) {
-      console.log(currentPage + pageSize);
-      let response = this.produtoWSClient.getProdutos(1);
-      response
-        .then((data) => {
-          this.produtos = data.produtos;
-          this.buscandoObjetosDiv = false;
-          this.isVisibleOrcamentoForm = true;
-          this.gravidadesRender = false;
+      this.gravidadesRender = false;
+      this.isVisibleOrcamentoForm = true;
+      this.msClientDtForm = "Buscando clientes do servidor...";
+      this.loading = true;
+      this.clientWSClient
+        .getClientes(currentPage, pageSize)
+        .then((response) => {
+          this.responseClientDTO = response.data;
+          this.msClientDtForm = "Selecione um cliente";
+          this.loading = false;
         })
         .catch((error) => {
-          this.buscandoObjetosDiv = false;
+          this.isVisibleOrcamentoForm = false;
+
+          this.addMessageToGravidades(
+            new MessagePojo(
+              "error",
+              "Erro ao buscar clientes, " + errorAxiosHandler.handleError(error)
+            )
+          );
+          this.loading = false;
+
+          this.isVisibleOrcamentoForm = false;
+        });
+    },
+    loadLazyProdutos(currentPage, pageSize) {
+      this.loadingItens = true;
+      this.gravidadesRender = false;
+      this.msgLoadingProducts = "Buscando produtos do servidor...";
+      this.produtoWSClient
+        .getProducts(currentPage, pageSize)
+        .then((response) => {
+          this.responseProdutosDTO = response.data;
+          this.loadingItens = false;
+          this.msgLoadingProducts = "Produtos carregados,selecione-os.";
+        })
+        .catch((error) => {
+          this.gravidadesRender = true;
+          this.loading = false;
           this.isVisibleOrcamentoForm = false;
           this.addMessageToGravidades(
             new MessagePojo(
               "error",
-              "Erro ao buscar produtos, " + error.message
+              "Erro ao buscar produtos, " + errorAxiosHandler.handleError(error)
             )
           );
         });
@@ -425,53 +637,22 @@ export default {
       this.gravidades.push(messagePojo);
       this.gravidadesRender = true;
     },
-    abreProdutosDialog() {
+    openDlgProducts() {
       this.displayProdutosDialog = true;
     },
-    confirmarSelecaoDeProdutos() {
+    confirmItems() {
       this.displayProdutosDialog = false;
       this.itens = this.podutosSelecionados.map((obj) => {
-        return new ItemPedido(
-          obj.descricao,
-          obj.descricao_tipo + " - " + obj.tipo_produto,
-          obj.cod_comercial,
-          1
-        );
+        return new ItemPedido(obj.commercial_code, 10, obj.description);
       });
     },
-    removeItemDaCollection(item) {
+    removeItemFromCollection(item) {
+      console.log(item);
       this.itens = this.itens.filter(
-        (obj) => obj.cod_produto != item.cod_produto
+        (obj) => obj.product_code != item.product_code
       );
     },
-    gerarOrcamento() {
-      this.buscandoObjMsg =
-        "Se comunicando com servidor para estimar valores do orcamento...";
-      this.buscandoObjetosDiv = true;
-      this.isVisibleOrcamentoForm = false;
-      var orcamento = new Orcamento(
-        this.clienteSelecionado.codigo,
-        this.clienteSelecionado.loja,
-        this.itens
-      );
-      this.orcamentoWSClient
-        .processOrcamento(orcamento)
-        .then((response) => {
-          this.isVisibleOrcamentoForm = false;
-          this.isVisibleOrcamentoResult = true;
-          this.buscandoObjetosDiv = false;
-          this.orcamentoResponse = response.data;
-        })
-        .catch((error) => {
-          this.isVisibleOrcamentoForm = true;
-          this.buscandoObjetosDiv = false;
-          if (error.response) {
-            MessageService.showError(
-              "Erro: " + error.response.data.errorMessage
-            );
-          }
-        });
-    },
+
     formatCurrency(value) {
       if (value)
         return value.toLocaleString("pt-BR", {
@@ -494,8 +675,12 @@ export default {
       this.isClienteSelecionado = false;
     },
     findClientByCode() {
-      if (this.clienteCodeToFind != null && this.lojaClientToFind != null) {
-        this.isSearchDialogOpened = false;
+      this.codeAndStoreNotTyped = false;
+      if (
+        this.clienteCodeToFind.length > 0 &&
+        this.lojaClientToFind.length > 0
+      ) {
+        this.isFilterDialogOpened = false;
         this.loading = true;
         this.clientWSClient
           .getClientesByCodeAndLoja(
@@ -503,7 +688,13 @@ export default {
             this.lojaClientToFind
           )
           .then((response) => {
-            this.responseWSClients = response.data;
+            this.responseClientDTO = new ResponseClientDTO(
+              1,
+              response.data.client,
+              1,
+              1,
+              1
+            );
             this.loading = false;
             this.msClientDtForm = "Selecione o cliente";
           })
@@ -518,23 +709,85 @@ export default {
                   "Erro ao buscar clientes, " + error.message
                 )
               );
-              this.responseWSClients = "";
               this.gravidadesRender = true;
             }
             this.loading = false;
           });
       } else {
-        MessageService.showWarn(
-          "Digite o codigo do cliente e sua respectiva loja."
-        );
+        console.log(this.clienteCodeToFind.length);
+        this.codeAndStoreNotTyped = true;
       }
     },
-    openSearchDialog() {
-      this.isSearchDialogOpened = true;
+    openFilterClientDialog() {
+      this.isFilterDialogOpened = true;
     },
     onPage(event) {
-      this.loadLazyClients(event.page, event.rows);
-      console.log(event);
+      this.loadLazyClients(event.page + 1, event.rows);
+    },
+    openFindProductCodeDlg() {
+      this.isFindProductDialogOpened = true;
+    },
+    findProductByCode() {
+      this.fetchingProductByCode = true;
+      this.renderDivFindProdByCodeInputs = false;
+      this.produtoWSClient
+        .getProductByCode(this.codeToFindProduct)
+        .then((response) => {
+          this.codeToFindProduct = "";
+          // this.isFindProductDialogOpened = false;
+          this.responseProdDTOFindByCode = new ResponseProdutosDTO(
+            response.data.products
+          );
+          this.renderDivResponse = true;
+          this.fetchingProductByCode = false;
+        });
+    },
+    addProductToOrcamento() {
+      this.podutosSelecionados.push(this.responseProdDTOFindByCode.products[0]);
+      this.renderDivResponse = false;
+      this.renderDivFindProdByCodeInputs = true;
+    },
+    onPageProducts(event) {
+      this.loadLazyProdutos(event.page + 1, event.rows);
+    },
+    generateOrcamentoPrices() {
+      this.isVisibleOrcamentoForm = false;
+      this.renderAnythingProcessing = true;
+      this.processingAnythingMessage =
+        "Se comunicando com servidor para geração de valores...";
+      let orcamento = new PostOrcamentoDTO(
+        this.selectedClient.code,
+        this.selectedClient.store,
+        this.itens
+      );
+      this.orcamentoWSClient
+        .processOrcamento(orcamento)
+        .then((response) => {
+          this.renderAnythingProcessing = false;
+          this.isVisibleOrcamentoResult = true;
+          let stTotale = 0;
+          response.data.estimate.forEach((element) => {
+            stTotale += element.st_value;
+          });
+          console.log("stTotale before " + stTotale);
+          this.responseOrcamentoDTO = new ResponseOrcamentoDTO(
+            response.data.client_description,
+            response.data.liquid_order_value,
+            response.data.estimate,
+            response.data.gross_order_value,
+            response.data.quantity,
+            stTotale
+          );
+          console.log("stTotale " + this.responseOrcamentoDTO.stTotale);
+        })
+        .catch((error) => {
+          this.renderAnythingProcessing = false;
+          this.isVisibleOrcamentoResult = false;
+          this.isVisibleOrcamentoForm = true;
+          this.messageService.showError(
+            "Error ao gerar orcamento: " + errorAxiosHandler.handleError(error)
+          );
+        });
     },
   },
 };

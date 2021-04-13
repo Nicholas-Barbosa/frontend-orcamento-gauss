@@ -38,6 +38,7 @@ import AppProfile from "./components/AppComponents/AppProfile.vue";
 import AppMenu from "./components/AppComponents/AppMenu.vue";
 import AppConfig from "./components/AppComponents/AppConfig.vue";
 import AppFooter from "./components/AppComponents/AppFooter.vue";
+import authService from "./classes/service/AuthenService";
 
 export default {
   data() {
@@ -60,6 +61,14 @@ export default {
               to: "/pedido/novo",
             },
           ],
+        },
+
+        {
+          label: "Sign out",
+          icon: "pi pi-sign-out",
+          command: () => {
+            authService.doLogout();
+          },
         },
       ],
     };

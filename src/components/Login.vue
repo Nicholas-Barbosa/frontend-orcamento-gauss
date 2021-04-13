@@ -25,7 +25,7 @@
       </div>
       <div class="p-col-12" v-if="logging">
         <div class="card">
-          <h4>Efetuando loging...</h4>
+          <h4>Efetuando logging...</h4>
           <ProgressSpinner
             style="width: 50px; height: 50px"
             strokeWidth="8"
@@ -36,12 +36,12 @@
       </div>
     </div>
     <Toast />
-   
   </div>
 </template>
 <script>
-import AuthenService from "../classes/service/AuthenService.js";
-import MessageService from "../classes/service/MessageService.js";
+import authService from "../classes/service/AuthenService.js";
+import errorAxiosHandler from "../classes/service/ErrorAxiosHandler";
+import MessageView from "../classes/service/MessageService.js";
 export default {
   data() {
     return {
@@ -49,32 +49,34 @@ export default {
       senha: null,
       logging: false,
       formLogin: true,
-      h2Message: "Efetue autenticação para prosseguir.",
+      h2Message: "Token inválido,efetue autenticação.",
+      messageView:null
     };
   },
   authService: null,
   created() {
-    this.authService = new AuthenService();
-    MessageService.toast = this.$toast;
+    this.messageView = new MessageView(this.$toast);
+    
   },
   methods: {
     doLogin() {
       this.logging = true;
       this.formLogin = false;
 
-      this.authService.doLogin(this.usuario, this.senha).then((response) => {
-        if (response.data) {
+      authService
+        .doLogin(this.usuario, this.senha)
+        .then((response) => {
           this.formLogin = false;
           this.h2Message = "Usuário autenticado.";
-        } else {
+          console.log(response);
+          this.logging = false;
+        })
+        .catch((error) => {
           this.formLogin = true;
-          MessageService.showError("Usuario nao encontrado.");
-        }
-
-        this.logging = false;
-      });
+          this.messageView.showError(errorAxiosHandler.handleError(error));
+          this.logging = false;
+        });
     },
-  
   },
 };
 </script>

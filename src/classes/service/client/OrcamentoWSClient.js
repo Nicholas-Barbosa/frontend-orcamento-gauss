@@ -1,12 +1,8 @@
-import httpAxiosService from "./HttpAxiosService";
-
+import genericClient from "./GenericClient";
 export default class OrcamentoWSClient{
 
     processOrcamento(orcamento){
-        return httpAxiosService.post("/estimate",orcamento,{
-            auth:{
-                username:"Mano.rep",
-                password:"abc@123"
-            }});
+        let uri = "/estimate"
+        return genericClient.doPost(uri,orcamento);
     }
 }
